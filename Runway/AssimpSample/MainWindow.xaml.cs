@@ -93,19 +93,19 @@ namespace AssimpSample
             {
                 case Key.F2: this.Close(); break;
                 case Key.E: 
-                    if(m_world.RotationX > -10.0f)
+                    if(m_world.RotationX > -5.0f)
                          m_world.RotationX -= 5.0f;
                     break;
                 case Key.D:
-                    if(m_world.RotationX < 80.0f)
+                    if(m_world.RotationX < 30.0f)
                         m_world.RotationX += 5.0f; 
                     break;
                 case Key.S: m_world.RotationY -= 5.0f; break;
                 case Key.F: m_world.RotationY += 5.0f; break;
                 case Key.Add: m_world.SceneDistance -= 2.0f; break;
                 case Key.Subtract: m_world.SceneDistance += 2.0f; break;
-                case Key.V: 
-                    m_world.timer1.Start();
+                case Key.V:
+                    m_world.StartAnimation();
                     m_world.AnimationInProgress = true; 
                     break;
                 case Key.F4:
@@ -113,7 +113,6 @@ namespace AssimpSample
                     bool result = (bool) opfModel.ShowDialog();
                     if (result)
                     {
-
                         try
                         {
                             World newWorld = new World(Directory.GetParent(opfModel.FileName).ToString(), Path.GetFileName(opfModel.FileName), (int)openGLControl.Width, (int)openGLControl.Height, openGLControl.OpenGL);

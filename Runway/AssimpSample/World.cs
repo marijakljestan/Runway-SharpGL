@@ -6,16 +6,10 @@
 // <summary>Klasa koja enkapsulira OpenGL programski kod.</summary>
 // -----------------------------------------------------------------------
 using System;
-using Assimp;
-using System.IO;
-using System.Reflection;
-using SharpGL.SceneGraph;
-using SharpGL.SceneGraph.Primitives;
 using SharpGL.SceneGraph.Quadrics;
 using SharpGL.SceneGraph.Core;
 using SharpGL;
 using System.Windows.Threading;
-using System.Windows.Media;
 using Transformations;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -51,7 +45,7 @@ namespace AssimpSample
         /// <summary>
         ///	 Udaljenost scene od kamere.
         /// </summary>
-        private float m_sceneDistance = 5.0f;
+        private float m_sceneDistance = 6.5f;
 
         /// <summary>
         ///	 Sirina OpenGL kontrole u pikselima.
@@ -65,7 +59,7 @@ namespace AssimpSample
 
         private float m_eyeX = 0.0f;
         private float m_eyeY = 0.0f;
-        private float m_eyeZ = 5.0f;
+        private float m_eyeZ = 3.0f;
 
         private float m_centerX = 0.0f;
         private float m_centerY = 0.0f;
@@ -75,9 +69,12 @@ namespace AssimpSample
         private float m_upY = 1.0f;
         private float m_upZ = 0.0f;
 
-        private float m_airplaneX;
-        private float m_airplaneY;
-        private float m_airplaneZ;
+        private float m_airplaneX_Rotate = 0.0f;
+        private float m_airplaneY_Rotate = 1.0f;
+        private float m_airplaneZ_Rotate = 1.0f;
+        private float m_airplaneX_Translate = 4.0f;
+        private float m_airplaneY_Translate = -0.5f;
+        private float m_airplaneZ_Translate = 5.0f;
 
         private float pivot = 1.0f;
 
@@ -85,7 +82,7 @@ namespace AssimpSample
 
         private float m_scaleAirplane = 0.001f;
         private double m_runwayLength = -20.0;
-        private double m_airplaneSpeed;
+        private double m_airplaneSpeed = 100;
 
         private float[] light0pos;
         private float[] light1pos;
@@ -103,9 +100,7 @@ namespace AssimpSample
         ///	 Putanje do slika koje se koriste za teksture
         private string[] m_textureFiles = { "..//..//Textures//grass.jpg", "..//..//Textures//asphalt.jpg" };
 
-        public DispatcherTimer timer1;
-        public DispatcherTimer timer2;
-        public DispatcherTimer timer3;
+        public DispatcherTimer timer;
 
         #endregion Atributi
 
@@ -233,15 +228,8 @@ namespace AssimpSample
         
             gl.Enable(OpenGL.GL_COLOR_MATERIAL); //Color tracking mehanizam
             gl.ColorMaterial(OpenGL.GL_FRONT, OpenGL.GL_AMBIENT_AND_DIFFUSE); // ambijentalna i difuzna komponenta materijala
-            SetUpLighting(gl);
-
+            SetupLighting(gl);
             SetupTextures(gl);
-
-            timer1 = new DispatcherTimer();
-            timer2 = new DispatcherTimer();
-            timer3 = new DispatcherTimer();
-            timer1.Interval = TimeSpan.FromMilliseconds(m_airplaneSpeed);
-            timer1.Tick += new EventHandler(StartAnimation);
         }
 
         /// <summary>
@@ -256,7 +244,7 @@ namespace AssimpSample
             gl.MatrixMode(OpenGL.GL_PROJECTION);
             gl.LoadIdentity();
 
-            gl.Perspective(45f, (double)m_width / m_height, 0.5f, 50f);
+            gl.Perspective(45f, (double)m_width / m_height, 0.5f, 500f);
             gl.MatrixMode(OpenGL.GL_MODELVIEW);
 
             // pozicioniranje svjetlosnog izvora koji je neosjetljiv na transformacije
@@ -266,7 +254,7 @@ namespace AssimpSample
             gl.PushMatrix();
 
             //Definisanje kamere
-            //gl.LookAt(m_eyeX, m_eyeY, m_eyeZ, m_centerX, m_centerY, m_centerZ, m_upX, m_upY, m_upZ);
+            gl.LookAt(m_eyeX, m_eyeY, m_eyeZ, m_centerX, m_centerY, m_centerZ, m_upX, m_upY, m_upZ);
 
             gl.Translate(0.0f, 0.0f, -m_sceneDistance);
             // Rotacija scene
@@ -283,13 +271,17 @@ namespace AssimpSample
             gl.Flush();
         }
 
-        private void SetUpLighting(OpenGL gl)
+        #region Ligthing
+        private void SetupLighting(OpenGL gl)
         {
+            float[] globalAmbient = new float[] { 0.2f, 0.2f, 0.2f, 1.0f };
+            gl.LightModel(OpenGL.GL_LIGHT_MODEL_AMBIENT, globalAmbient);
             //Definisanje tackastog izvora svjetlosti, bijele boje
             light0pos = new float[] { 0.0f, 500.0f, -250.0f, 1.0f };           
             float[] light0ambient = new float[] { 1.0f, 1.0f, 1.0f, 1.0f };     
             float[] light0diffuse = new float[] { 1.0f, 1.0f, 1.0f, 1.0f };
             float[] light0specular = new float[] { 1.0f, 1.0f, 1.0f, 1.0f };
+      
             gl.Light(OpenGL.GL_LIGHT0, OpenGL.GL_POSITION, light0pos);
             gl.Light(OpenGL.GL_LIGHT0, OpenGL.GL_AMBIENT, light0ambient);
             gl.Light(OpenGL.GL_LIGHT0, OpenGL.GL_DIFFUSE, light0diffuse);
@@ -297,24 +289,26 @@ namespace AssimpSample
             gl.Light(OpenGL.GL_LIGHT0, OpenGL.GL_SPOT_CUTOFF, 180.0f);            
              
             //Definisanje reflektorskog izvora svjetlosti plave boje
-            light1pos = new float[] { 10.0f, 0.0f, 5.0f, 1.0f};                   
-            float[] light1ambient = new float[] { 0.0f, 0.5f, 1.0f, 1.0f };       
+            light1pos = new float[] { 15.0f, 0.0f, 2.0f, 1.0f};                   
+            float[] light1ambient = new float[] { 0.0f, 0.2f, 1.0f, 1.0f };       
             float[] light1diffuse = new float[] { 0.0f, 0.0f, 1.0f, 1.0f };
             float[] light1specular = new float[] { 1.0f, 1.0f, 1.0f, 1.0f };
+            float[] light1direction = new float[] { 1.0f, 0.0f, 0.0f };
             gl.Light(OpenGL.GL_LIGHT1, OpenGL.GL_POSITION, light1pos);
             gl.Light(OpenGL.GL_LIGHT1, OpenGL.GL_AMBIENT, light1ambient);
             gl.Light(OpenGL.GL_LIGHT1, OpenGL.GL_DIFFUSE, light1diffuse);
             gl.Light(OpenGL.GL_LIGHT1, OpenGL.GL_SPECULAR, light1specular);
-            gl.Light(OpenGL.GL_LIGHT1, OpenGL.GL_SPOT_CUTOFF, 30.0f);       
+            gl.Light(OpenGL.GL_LIGHT1, OpenGL.GL_SPOT_CUTOFF, 30.0f);
+            gl.Light(OpenGL.GL_LIGHT1, OpenGL.GL_SPOT_DIRECTION, light1direction);
 
             gl.Enable(OpenGL.GL_LIGHTING);
             gl.Enable(OpenGL.GL_LIGHT0);
             gl.Enable(OpenGL.GL_LIGHT1);
-            m_baseVertices = new float[] { -10.0f, -1.0f, 2.0f, 10.0f, -1.0f, 2.0f, 10.0f, -1.0f, (float)m_runwayLength, -10.0f, -1.0f, (float)m_runwayLength };
-            m_baseNormals = LightingUtilities.ComputeVertexNormals(m_baseVertices);
             gl.Enable(OpenGL.GL_NORMALIZE); //automatsko generisanje normala
         }
+        #endregion
 
+        #region Textures
         private void SetupTextures(OpenGL gl)
         {
             gl.Enable(OpenGL.GL_TEXTURE_2D);
@@ -326,7 +320,7 @@ namespace AssimpSample
                 if (i == 1)
                 {
                     gl.MatrixMode(OpenGL.GL_TEXTURE);
-                    gl.Scale(1.0f, 0.5f, 0.5f);
+                    gl.Scale(1.0f, 1.0f, 1.0f);
                 }
                 // Pridruzi teksturu odgovarajucem identifikatoru
                 gl.BindTexture(OpenGL.GL_TEXTURE_2D, m_textures[i]);
@@ -351,42 +345,138 @@ namespace AssimpSample
                 image.Dispose();
             }
         }
+        #endregion
 
-        public void StartAnimation(object sender, EventArgs e)
+        #region Animation
+        public void StartAnimation()
+        {
+            timer = new DispatcherTimer();
+            timer.Interval = TimeSpan.FromMilliseconds(m_airplaneSpeed);
+            timer.Tick += new EventHandler(TranslateAirplane);
+            timer.Start();
+        }
+
+        public void RotateScene(object sender, EventArgs e)
         {
             m_yRotation += 10;
-            while(m_yRotation < 60)
+            if (m_yRotation < 90)
                 m_yRotation += 10;
 
-            timer1.Stop();
-            timer2.Interval = TimeSpan.FromMilliseconds(m_airplaneSpeed);
-            timer2.Tick += new EventHandler(TranslateAirplane);
-            //timer2.Start();
+            timer.Stop();
+            timer = new DispatcherTimer();
+            timer.Interval = TimeSpan.FromMilliseconds(m_airplaneSpeed);
+            timer.Tick += new EventHandler(TranslateAirplane);
+            timer.Start();
         }
 
         public void TranslateAirplane(object sender, EventArgs e)
         {
-            timer2.Start();
+            timer.Start();
 
-            while(m_airplaneZ > -20.0f)
-                m_airplaneZ -= 1;
-
-            timer2.Stop();
-            StopAnimation();
-            AnimationInProgress = false;
+            if (m_airplaneZ_Translate > -5.0f)
+            {
+                m_airplaneZ_Translate -= 1.0f;
+                m_airplaneX_Rotate = 0.0f;
+            }
+            else
+            {
+                timer.Stop();
+                timer = new DispatcherTimer();
+                timer.Interval = TimeSpan.FromMilliseconds(m_airplaneSpeed);
+                timer.Tick += new EventHandler(TurnAsideAirplane);
+                timer.Start();
+            }
         }
 
-        private void StopAnimation()
+        public void TurnAsideAirplane(object sender, EventArgs e)
         {
-            m_yRotation = 0.0f;
-            m_airplaneZ = 3.5f;
+            timer.Start();
+           
+            if(m_airplaneX_Rotate < 4.0f)
+                 m_airplaneX_Rotate += 1.0f;
+            else 
+            {
+                timer.Stop();
+                timer = new DispatcherTimer();
+                timer.Interval = TimeSpan.FromMilliseconds(m_airplaneSpeed);
+                timer.Tick += new EventHandler(RotateAirplane);
+                timer.Start();
+            }         
         }
+
+        public void RotateAirplane(object sender, EventArgs e)
+        { 
+            timer.Start();
+            if (m_airplaneX_Rotate < 15.0f)
+            {
+                m_airplaneZ_Translate -= 0.5f;
+                m_airplaneX_Rotate += 1.0f;
+            }
+            else
+            {
+                timer.Stop();
+                timer = new DispatcherTimer();
+                timer.Interval = TimeSpan.FromMilliseconds(m_airplaneSpeed);
+                timer.Tick += new EventHandler(StraightenFlight);
+                timer.Start();
+            }
+        }
+
+        private void StraightenFlight(object sender, EventArgs e)
+        {
+            timer.Start();
+            m_airplaneY_Translate += 0.5f;
+            m_airplaneX_Rotate -= 0.5f;
+
+            timer.Stop();
+            timer = new DispatcherTimer();
+            timer.Interval = TimeSpan.FromMilliseconds(m_airplaneSpeed);
+            timer.Tick += new EventHandler(KeepFlying);
+            timer.Start();
+        }
+
+        private void KeepFlying(object sender, EventArgs e)
+        {
+            timer.Start();
+            if (m_airplaneZ_Translate > -150.0f)
+            {
+                m_airplaneZ_Translate -= 10.0f;
+            }
+            else
+            {
+                timer.Stop();
+                timer = new DispatcherTimer();
+                timer.Interval = TimeSpan.FromMilliseconds(m_airplaneSpeed);
+                timer.Tick += new EventHandler(StopAnimation);
+                timer.Start();
+            }
+        }
+
+        private void StopAnimation(object sender, EventArgs e)
+        {
+            timer.Stop();
+            timer.IsEnabled = false;
+            this.m_animationInProgress = false;
+
+            m_yRotation = 1.0f;
+
+            m_airplaneX_Rotate = 0.0f;
+            m_airplaneY_Rotate = 1.0f;
+            m_airplaneZ_Rotate = 1.0f;
+
+            m_airplaneX_Translate = 4.0f;
+            m_airplaneY_Translate = -0.5f;
+            m_airplaneZ_Translate = 5.0f;
+        }
+        #endregion
 
         private void DrawBase(OpenGL gl)
         {
-           // gl.MatrixMode(OpenGL.GL_TEXTURE);
-            gl.PushMatrix();
+            // gl.MatrixMode(OpenGL.GL_TEXTURE);
             //gl.Scale(0.8f, 0.8f, 0.8f);
+            m_baseVertices = new float[] { -10.0f, -1.0f, 2.0f, 10.0f, -1.0f, 2.0f, 10.0f, -1.0f, (float)m_runwayLength, -10.0f, -1.0f, (float)m_runwayLength };
+            m_baseNormals = LightingUtilities.ComputeVertexNormals(m_baseVertices);
+            gl.PushMatrix();    
             gl.BindTexture(OpenGL.GL_TEXTURE_2D, m_textures[(int)TextureObjects.Grass]);
             gl.Translate(0.0f, -1.0f, 0.0f);
             gl.NormalPointer(OpenGL.GL_FLOAT, 0, m_baseNormals);
@@ -479,35 +569,30 @@ namespace AssimpSample
             }
             sphere.Material.Emission = System.Drawing.Color.Black;
             sphere.Material.Bind(gl);
-            //sphere.Material = null;
             gl.PopMatrix();
-            //sphere.Material = new SharpGL.SceneGraph.Assets.Material();
-            //sphere.Material = null;
             gl.MatrixMode(OpenGL.GL_MODELVIEW);
         }
 
         private void DrawAirplane(OpenGL gl)
         {
-            //gl.MatrixMode(OpenGL.GL_TEXTURE);
             gl.PushMatrix();
-            //gl.Scale(0.8f, 0.8f, 0.8f);
-            gl.Scale(0.8f, 0.8f, 0.8f);
-            gl.Translate(4.0f, 0.0f, 3.5f);
-            gl.Rotate(90.0f, 0.0f, 0.0f, 1.0f);
-            gl.Rotate(90.0f, 0.0f, 1.0f, 0.0f);
+            gl.Rotate(m_airplaneX_Rotate, 1.0f, 0.0f, 0.0f);
+            gl.Translate(m_airplaneX_Translate, m_airplaneY_Translate, m_airplaneZ_Translate);
+            gl.Rotate(90.0f, 0.0f, 0.0f, m_airplaneZ_Rotate);
+            gl.Rotate(90.0f, 0.0f, m_airplaneY_Rotate, 0.0f);
             gl.Translate(4.0f, 4.0f, -1.0f);
             gl.Scale(m_scaleAirplane, m_scaleAirplane, m_scaleAirplane);
             m_airplane.Draw();
             gl.MatrixMode(OpenGL.GL_MODELVIEW);
-            gl.PushMatrix();
-            light1pos = new float[] { 5.0f, 0.0f, 0.0f, 1.0f };
-            gl.Light(OpenGL.GL_LIGHT1, OpenGL.GL_POSITION, light1pos);
-            gl.Light(OpenGL.GL_LIGHT1, OpenGL.GL_SPOT_DIRECTION, light1pos);
-            gl.PopMatrix();
-
+            //Podesavanje pozicije reflektorskog osvjetljenja
+           // gl.PushMatrix();
+           // light1pos = new float[] { 5.0f, 0.0f, 0.0f, 1.0f };
+            //gl.Light(OpenGL.GL_LIGHT1, OpenGL.GL_POSITION, light1pos);
+           // gl.PopMatrix();
             gl.PopMatrix();
         }
 
+        #region 3DText
         private void DrawText(OpenGL gl)
         {
             gl.PushMatrix();
@@ -572,7 +657,7 @@ namespace AssimpSample
 
             gl.PopMatrix();
         }
-
+        #endregion
 
         /// <summary>
         /// Podesava viewport i projekciju za OpenGL kontrolu.
@@ -593,11 +678,10 @@ namespace AssimpSample
             gl.LoadIdentity();
 
             // Definisanje projekcije u perspektivi
-            gl.Perspective(45f, (double)width / height, 0.5f, 50f);
+            gl.Perspective(45f, (double)width / height, 0.5f, 500f);
             gl.MatrixMode(OpenGL.GL_MODELVIEW);
             gl.LoadIdentity();                      
         }
-
 
         /// <summary>
         ///  Implementacija IDisposable interfejsa.
