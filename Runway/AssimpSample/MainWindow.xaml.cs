@@ -93,11 +93,11 @@ namespace AssimpSample
             {
                 case Key.F2: this.Close(); break;
                 case Key.E: 
-                    if(m_world.RotationX > -20.0f)
+                    if(m_world.RotationX > -10.0f)
                          m_world.RotationX -= 5.0f;
                     break;
                 case Key.D:
-                    if(m_world.RotationX < 75.0f)
+                    if(m_world.RotationX < 80.0f)
                         m_world.RotationX += 5.0f; 
                     break;
                 case Key.S: m_world.RotationY -= 5.0f; break;

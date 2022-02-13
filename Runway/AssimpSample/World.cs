@@ -15,6 +15,8 @@ using SharpGL.SceneGraph.Quadrics;
 using SharpGL.SceneGraph.Core;
 using SharpGL;
 using System.Windows.Threading;
+using System.Windows.Media;
+using Transformations;
 
 namespace AssimpSample
 {
@@ -60,8 +62,8 @@ namespace AssimpSample
         private int m_height;
 
         private float m_eyeX = 0.0f;
-        private float m_eyeY = -1.0f;
-        private float m_eyeZ = 0.5f;
+        private float m_eyeY = 0.0f;
+        private float m_eyeZ = 5.0f;
 
         private float m_centerX = 0.0f;
         private float m_centerY = 0.0f;
@@ -82,6 +84,12 @@ namespace AssimpSample
         private float m_scaleAirplane = 0.001f;
         private double m_runwayLength = -20.0;
         private double m_airplaneSpeed;
+
+        private float[] light0pos;
+        private float[] light1pos;
+
+        private float[] m_baseNormals;
+        private float[] m_baseVertices;
 
         public DispatcherTimer timer1;
         public DispatcherTimer timer2;
@@ -212,6 +220,7 @@ namespace AssimpSample
         
             gl.Enable(OpenGL.GL_COLOR_MATERIAL); //Color tracking mehanizam
             gl.ColorMaterial(OpenGL.GL_FRONT, OpenGL.GL_AMBIENT_AND_DIFFUSE); // ambijentalna i difuzna komponenta materijala
+            SetUpLighting(gl);
 
             timer1 = new DispatcherTimer();
             timer2 = new DispatcherTimer();
@@ -229,17 +238,21 @@ namespace AssimpSample
             gl.Viewport(0, 0, m_width, m_height);
             gl.FrontFace(OpenGL.GL_CCW);
 
-            //Definisanje kamere
-            //gl.LookAt(m_eyeX, m_eyeY, m_eyeZ, m_centerX, m_centerY, m_centerZ, m_upX, m_upY, m_upZ);
-
             gl.MatrixMode(OpenGL.GL_PROJECTION);
             gl.LoadIdentity();
 
             gl.Perspective(45f, (double)m_width / m_height, 0.5f, 50f);
             gl.MatrixMode(OpenGL.GL_MODELVIEW);
 
+            // pozicioniranje svjetlosnog izvora koji je neosjetljiv na transformacije
+            light0pos = new float[] { 0.0f, 500.0f, -250.0f, 1.0f };
+            gl.Light(OpenGL.GL_LIGHT0, OpenGL.GL_POSITION, light0pos);
 
             gl.PushMatrix();
+
+            //Definisanje kamere
+            //gl.LookAt(m_eyeX, m_eyeY, m_eyeZ, m_centerX, m_centerY, m_centerZ, m_upX, m_upY, m_upZ);
+
             gl.Translate(0.0f, 0.0f, -m_sceneDistance);
             // Rotacija scene
             gl.Rotate(m_xRotation, 1.0f, 0.0f, 0.0f);
@@ -253,6 +266,38 @@ namespace AssimpSample
 
             gl.PopMatrix();
             gl.Flush();
+        }
+
+        private void SetUpLighting(OpenGL gl)
+        {
+            //Definisanje tackastog izvora svjetlosti, bijele boje
+            light0pos = new float[] { 0.0f, 500.0f, -250.0f, 1.0f };           
+            float[] light0ambient = new float[] { 1.0f, 1.0f, 1.0f, 1.0f };     
+            float[] light0diffuse = new float[] { 1.0f, 1.0f, 1.0f, 1.0f };
+            float[] light0specular = new float[] { 1.0f, 1.0f, 1.0f, 1.0f };
+            gl.Light(OpenGL.GL_LIGHT0, OpenGL.GL_POSITION, light0pos);
+            gl.Light(OpenGL.GL_LIGHT0, OpenGL.GL_AMBIENT, light0ambient);
+            gl.Light(OpenGL.GL_LIGHT0, OpenGL.GL_DIFFUSE, light0diffuse);
+            gl.Light(OpenGL.GL_LIGHT0, OpenGL.GL_SPECULAR, light0specular);
+            gl.Light(OpenGL.GL_LIGHT0, OpenGL.GL_SPOT_CUTOFF, 180.0f);            
+             
+            //Definisanje reflektorskog izvora svjetlosti plave boje
+            light1pos = new float[] { 10.0f, 0.0f, 5.0f, 1.0f};                   
+            float[] light1ambient = new float[] { 0.0f, 0.0f, 1.0f, 1.0f };       
+            float[] light1diffuse = new float[] { 0.0f, 0.0f, 1.0f, 1.0f };
+            float[] light1specular = new float[] { 1.0f, 1.0f, 1.0f, 1.0f };
+            gl.Light(OpenGL.GL_LIGHT1, OpenGL.GL_POSITION, light1pos);
+            gl.Light(OpenGL.GL_LIGHT1, OpenGL.GL_AMBIENT, light1ambient);
+            gl.Light(OpenGL.GL_LIGHT1, OpenGL.GL_DIFFUSE, light1diffuse);
+            gl.Light(OpenGL.GL_LIGHT1, OpenGL.GL_SPECULAR, light1specular);
+            gl.Light(OpenGL.GL_LIGHT1, OpenGL.GL_SPOT_CUTOFF, 30.0f);       
+
+            gl.Enable(OpenGL.GL_LIGHTING);
+            gl.Enable(OpenGL.GL_LIGHT0);
+            //gl.Enable(OpenGL.GL_LIGHT1);
+            m_baseVertices = new float[] { -10.0f, -1.0f, 2.0f, 10.0f, -1.0f, 2.0f, 10.0f, -1.0f, (float)m_runwayLength, -10.0f, -1.0f, (float)m_runwayLength };
+            m_baseNormals = LightingUtilities.ComputeVertexNormals(m_baseVertices);
+            gl.Enable(OpenGL.GL_NORMALIZE); //automatsko generisanje normala
         }
 
         public void StartAnimation(object sender, EventArgs e)
@@ -289,6 +334,7 @@ namespace AssimpSample
         {
             gl.PushMatrix();
             gl.Translate(0.0f, -1.0f, 0.0f);
+            gl.NormalPointer(OpenGL.GL_FLOAT, 0, m_baseNormals);
             gl.Begin(OpenGL.GL_QUADS);
 
             gl.Color(0.2f, .8f, 0.2f);
@@ -344,6 +390,10 @@ namespace AssimpSample
             sphere.Radius = 0.1f;
             sphere.QuadricDrawStyle = DrawStyle.Fill;
             sphere.CreateInContext(gl);
+            // Emisiona komponenta zute boje
+            sphere.Material = new SharpGL.SceneGraph.Assets.Material();
+            sphere.Material.Emission = System.Drawing.Color.Yellow;
+            sphere.Material.Bind(gl);
             sphere.Render(gl, RenderMode.Render);
 
             gl.Translate(-4.0f, 0.0f, 0.0f);
@@ -373,6 +423,13 @@ namespace AssimpSample
             gl.Translate(4.0f, 4.0f, -1.0f);
             gl.Scale(m_scaleAirplane, m_scaleAirplane, m_scaleAirplane);
             m_airplane.Draw();
+
+           /* gl.PushMatrix();
+            light1pos = new float[] { 5.0f, 0.0f, 0.0f, 1.0f };
+            gl.Light(OpenGL.GL_LIGHT1, OpenGL.GL_POSITION, light1pos);
+            gl.Light(OpenGL.GL_LIGHT1, OpenGL.GL_SPOT_DIRECTION, light1pos);
+            gl.PopMatrix();*/
+
             gl.PopMatrix();
         }
 
