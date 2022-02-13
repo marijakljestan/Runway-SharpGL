@@ -17,6 +17,8 @@ using SharpGL;
 using System.Windows.Threading;
 using System.Windows.Media;
 using Transformations;
+using System.Drawing;
+using System.Drawing.Imaging;
 
 namespace AssimpSample
 {
@@ -90,6 +92,16 @@ namespace AssimpSample
 
         private float[] m_baseNormals;
         private float[] m_baseVertices;
+
+        ///	 Identifikatori tekstura za jednostavniji pristup teksturama
+        private enum TextureObjects { Grass = 0, Asphalt };
+        private readonly int m_textureCount = Enum.GetNames(typeof(TextureObjects)).Length;
+
+        ///	 Identifikatori OpenGL tekstura
+        private uint[] m_textures = null;
+
+        ///	 Putanje do slika koje se koriste za teksture
+        private string[] m_textureFiles = { "..//..//Textures//grass.jpg", "..//..//Textures//asphalt.jpg" };
 
         public DispatcherTimer timer1;
         public DispatcherTimer timer2;
@@ -195,6 +207,7 @@ namespace AssimpSample
             this.m_airplane = new AssimpScene(scenePath, sceneFileName, gl);
             this.m_width = width;
             this.m_height = height;
+            this.m_textures = new uint[m_textureCount];
         }
 
         /// <summary>
@@ -221,6 +234,8 @@ namespace AssimpSample
             gl.Enable(OpenGL.GL_COLOR_MATERIAL); //Color tracking mehanizam
             gl.ColorMaterial(OpenGL.GL_FRONT, OpenGL.GL_AMBIENT_AND_DIFFUSE); // ambijentalna i difuzna komponenta materijala
             SetUpLighting(gl);
+
+            SetupTextures(gl);
 
             timer1 = new DispatcherTimer();
             timer2 = new DispatcherTimer();
@@ -257,7 +272,7 @@ namespace AssimpSample
             // Rotacija scene
             gl.Rotate(m_xRotation, 1.0f, 0.0f, 0.0f);
             gl.Rotate(m_yRotation, 0.0f, 1.0f, 0.0f);
-
+         
             DrawBase(gl);
             DrawRunway(gl);
             DrawLightSigns(gl);
@@ -283,7 +298,7 @@ namespace AssimpSample
              
             //Definisanje reflektorskog izvora svjetlosti plave boje
             light1pos = new float[] { 10.0f, 0.0f, 5.0f, 1.0f};                   
-            float[] light1ambient = new float[] { 0.0f, 0.0f, 1.0f, 1.0f };       
+            float[] light1ambient = new float[] { 0.0f, 0.5f, 1.0f, 1.0f };       
             float[] light1diffuse = new float[] { 0.0f, 0.0f, 1.0f, 1.0f };
             float[] light1specular = new float[] { 1.0f, 1.0f, 1.0f, 1.0f };
             gl.Light(OpenGL.GL_LIGHT1, OpenGL.GL_POSITION, light1pos);
@@ -294,10 +309,47 @@ namespace AssimpSample
 
             gl.Enable(OpenGL.GL_LIGHTING);
             gl.Enable(OpenGL.GL_LIGHT0);
-            //gl.Enable(OpenGL.GL_LIGHT1);
+            gl.Enable(OpenGL.GL_LIGHT1);
             m_baseVertices = new float[] { -10.0f, -1.0f, 2.0f, 10.0f, -1.0f, 2.0f, 10.0f, -1.0f, (float)m_runwayLength, -10.0f, -1.0f, (float)m_runwayLength };
             m_baseNormals = LightingUtilities.ComputeVertexNormals(m_baseVertices);
             gl.Enable(OpenGL.GL_NORMALIZE); //automatsko generisanje normala
+        }
+
+        private void SetupTextures(OpenGL gl)
+        {
+            gl.Enable(OpenGL.GL_TEXTURE_2D);
+   
+            // Ucitaj slike i kreiraj teksture
+            gl.GenTextures(m_textureCount, m_textures);
+            for (int i = 0; i < m_textureCount; ++i)
+            {
+                if (i == 1)
+                {
+                    gl.MatrixMode(OpenGL.GL_TEXTURE);
+                    gl.Scale(1.0f, 0.5f, 0.5f);
+                }
+                // Pridruzi teksturu odgovarajucem identifikatoru
+                gl.BindTexture(OpenGL.GL_TEXTURE_2D, m_textures[i]);
+
+                // Ucitaj sliku i podesi parametre teksture
+                Bitmap image = new Bitmap(m_textureFiles[i]);
+                // rotiramo sliku zbog koordinantog sistema opengl-a
+                image.RotateFlip(RotateFlipType.RotateNoneFlipY);
+                Rectangle rect = new Rectangle(0, 0, image.Width, image.Height);
+                // RGBA format (dozvoljena providnost slike tj. alfa kanal)
+                BitmapData imageData = image.LockBits(rect, System.Drawing.Imaging.ImageLockMode.ReadOnly,
+                                                      System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+
+                gl.Build2DMipmaps(OpenGL.GL_TEXTURE_2D, (int)OpenGL.GL_RGBA8, image.Width, image.Height, OpenGL.GL_BGRA, OpenGL.GL_UNSIGNED_BYTE, imageData.Scan0);
+                gl.TexParameter(OpenGL.GL_TEXTURE_2D, OpenGL.GL_TEXTURE_MIN_FILTER, OpenGL.GL_NEAREST);		// Nearest Filtering
+                gl.TexParameter(OpenGL.GL_TEXTURE_2D, OpenGL.GL_TEXTURE_MAG_FILTER, OpenGL.GL_NEAREST);		// Nearest Filtering
+                gl.TexParameter(OpenGL.GL_TEXTURE_2D, OpenGL.GL_TEXTURE_WRAP_S, OpenGL.GL_REPEAT);
+                gl.TexParameter(OpenGL.GL_TEXTURE_2D, OpenGL.GL_TEXTURE_WRAP_T, OpenGL.GL_REPEAT);
+                gl.TexEnv(OpenGL.GL_TEXTURE_ENV, OpenGL.GL_TEXTURE_ENV_MODE, OpenGL.GL_REPLACE); // nacin stapanja teksture sa materijalom
+
+                image.UnlockBits(imageData);
+                image.Dispose();
+            }
         }
 
         public void StartAnimation(object sender, EventArgs e)
@@ -332,33 +384,47 @@ namespace AssimpSample
 
         private void DrawBase(OpenGL gl)
         {
+           // gl.MatrixMode(OpenGL.GL_TEXTURE);
             gl.PushMatrix();
+            //gl.Scale(0.8f, 0.8f, 0.8f);
+            gl.BindTexture(OpenGL.GL_TEXTURE_2D, m_textures[(int)TextureObjects.Grass]);
             gl.Translate(0.0f, -1.0f, 0.0f);
             gl.NormalPointer(OpenGL.GL_FLOAT, 0, m_baseNormals);
             gl.Begin(OpenGL.GL_QUADS);
-
             gl.Color(0.2f, .8f, 0.2f);
+            gl.TexCoord(0.0f, 0.0f);
             gl.Vertex(-10.0, -1.0, 2.0);
+            gl.TexCoord(1.0f, 0.0f);
             gl.Vertex(10.0, -1.0, 2.0);
+            gl.TexCoord(1.0f, 1.0f);
             gl.Vertex(10.0, -1.0, m_runwayLength);
+            gl.TexCoord(0.0f, 1.0f);
             gl.Vertex(-10.0, -1.0, m_runwayLength);
-
+            gl.NormalPointer(OpenGL.GL_FLOAT, 0, IntPtr.Zero);
             gl.End();
             gl.PopMatrix();
+            gl.MatrixMode(OpenGL.GL_MODELVIEW);
         }
 
         private void DrawRunway(OpenGL gl)
         {
+            //gl.MatrixMode(OpenGL.GL_TEXTURE);
             gl.PushMatrix();
-            
+            //gl.Scale(0.8f, 0.8f, 0.8f);
+            gl.BindTexture(OpenGL.GL_TEXTURE_2D, m_textures[(int)TextureObjects.Asphalt]);
             gl.Translate(0.0f, -0.9f, 0.0f);
             gl.Begin(OpenGL.GL_QUADS);
             gl.Color(0.7, 0.7, 0.7);
+            gl.TexCoord(0.0f, 0.0f);
             gl.Vertex(-2.0f, -1.0f, 2.0f);
+            gl.TexCoord(1.0f, 0.0f);
             gl.Vertex(2.0f, -1.0f, 2.0f);
+            gl.TexCoord(1.0f, 1.0f);
             gl.Vertex(2.0f, -1.0f, m_runwayLength);
+            gl.TexCoord(0.0f, 1.0f);
             gl.Vertex(-2.0f, -1.0f, m_runwayLength);
             gl.End();
+            gl.MatrixMode(OpenGL.GL_MODELVIEW);
 
             //Iscrtavanje linija po pisti
             float temp = 0.6f;
@@ -382,7 +448,9 @@ namespace AssimpSample
 
         private void DrawLightSigns(OpenGL gl)
         {
+            //gl.MatrixMode(OpenGL.GL_TEXTURE);
             gl.PushMatrix();
+            //gl.Scale(0.8f, 0.8f, 0.8f);
             gl.Color(1.0f, 1.0f, 1.0f);
 
             gl.Translate(2.0f, -1.7f, -0.5f);
@@ -399,7 +467,6 @@ namespace AssimpSample
             gl.Translate(-4.0f, 0.0f, 0.0f);
             sphere.Render(gl, RenderMode.Render);
 
-
             for (int i = 0; i < Math.Round((-m_runwayLength) / 5); i++)
             {
                 gl.Translate(0.0f, 0.0f, -4.0f);
@@ -410,25 +477,33 @@ namespace AssimpSample
 
                 pivot = -1.0f * pivot;
             }
-
+            sphere.Material.Emission = System.Drawing.Color.Black;
+            sphere.Material.Bind(gl);
+            //sphere.Material = null;
             gl.PopMatrix();
+            //sphere.Material = new SharpGL.SceneGraph.Assets.Material();
+            //sphere.Material = null;
+            gl.MatrixMode(OpenGL.GL_MODELVIEW);
         }
 
         private void DrawAirplane(OpenGL gl)
         {
+            //gl.MatrixMode(OpenGL.GL_TEXTURE);
             gl.PushMatrix();
+            //gl.Scale(0.8f, 0.8f, 0.8f);
+            gl.Scale(0.8f, 0.8f, 0.8f);
             gl.Translate(4.0f, 0.0f, 3.5f);
             gl.Rotate(90.0f, 0.0f, 0.0f, 1.0f);
             gl.Rotate(90.0f, 0.0f, 1.0f, 0.0f);
             gl.Translate(4.0f, 4.0f, -1.0f);
             gl.Scale(m_scaleAirplane, m_scaleAirplane, m_scaleAirplane);
             m_airplane.Draw();
-
-           /* gl.PushMatrix();
+            gl.MatrixMode(OpenGL.GL_MODELVIEW);
+            gl.PushMatrix();
             light1pos = new float[] { 5.0f, 0.0f, 0.0f, 1.0f };
             gl.Light(OpenGL.GL_LIGHT1, OpenGL.GL_POSITION, light1pos);
             gl.Light(OpenGL.GL_LIGHT1, OpenGL.GL_SPOT_DIRECTION, light1pos);
-            gl.PopMatrix();*/
+            gl.PopMatrix();
 
             gl.PopMatrix();
         }
